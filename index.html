@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CELPIP Speaking Simulator</title>
+<style>
+  :root{
+    --paper:#FFFFFF; --field:#F2F4F7; --ink:#1B2430; --muted:#5B6673;
+    --navy:#1F3B73; --navy-deep:#142A55; --amber:#C77D1A; --green:#2E7D4F; --red:#B23A3A;
+    --line:#D6DBE2; --radius:6px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--field);color:var(--ink);font:16px/1.55 "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+  .shell{max-width:760px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;border-radius:var(--radius);padding:12px 18px}
+  header h1{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
+  header .task-num{font-size:14px;opacity:.9}
+  .stage{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);margin-top:14px;padding:22px}
+  .task-name{font-size:14px;color:var(--muted);margin:0 0 6px}
+  .prompt{font-size:19px;line-height:1.5;margin:0 0 20px;font-weight:500}
+  .timer-row{display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--line);padding-top:16px;margin-top:4px}
+  .phase{font-size:14px;color:var(--muted);min-width:110px}
+  .clock{font-size:44px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:1px;color:var(--navy);line-height:1}
+  .clock.warn{color:var(--amber)}
+  .clock.rec{color:var(--red)}
+  .bar{height:6px;background:var(--field);border-radius:3px;margin:12px 0 18px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--navy);transition:width .9s linear}
+  .bar.rec i{background:var(--red)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px}
+  button{font:inherit;font-weight:600;padding:11px 18px;border-radius:var(--radius);border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+  button.secondary{background:#fff;color:var(--navy)}
+  button.danger{background:var(--red);border-color:var(--red)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+  label{display:block;font-size:14px;color:var(--muted);margin:18px 0 6px}
+  textarea{width:100%;min-height:150px;font:inherit;font-size:15px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);resize:vertical;background:#fff}
+  .hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+  .mic-status{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--red);margin-top:8px}
+  .mic-status .dot{width:10px;height:10px;border-radius:50%;background:var(--red);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){.mic-status .dot{animation:none}.bar i{transition:none}}
+  .result{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);margin-top:14px;padding:22px;display:none}
+  .score-head{display:flex;align-items:center;gap:18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .clb{font-size:52px;font-weight:700;color:var(--navy);line-height:1}
+  .clb small{display:block;font-size:13px;color:var(--muted);font-weight:500;margin-top:4px}
+  .verdict{font-size:15px}
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:15px}
+  td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  td:first-child{width:150px;color:var(--muted)}
+  td:nth-child(2){width:50px;font-weight:600;color:var(--navy)}
+  h3{font-size:15px;margin:22px 0 8px}
+  .errs li{margin-bottom:10px}
+  .errs .wrong{color:var(--red);text-decoration:line-through}
+  .errs .right{color:var(--green);font-weight:600}
+  .errs .why{display:block;font-size:14px;color:var(--muted)}
+  .model{background:var(--field);padding:14px;border-radius:var(--radius);font-size:15px;white-space:pre-wrap}
+  .loading{color:var(--muted);font-size:15px}
+  .err{color:var(--red);font-size:14px;margin-top:10px}
+  .history{margin-top:14px;font-size:14px;color:var(--muted)}
+  .history span{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:4px;padding:3px 8px;margin:4px 6px 0 0;color:var(--ink)}
+  footer{font-size:13px;color:var(--muted);margin:18px 4px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>CELPIP Speaking Simulator</h1>
+    <div class="task-num" id="taskNum">Task 1 of 8</div>
+  </header>
+
+  <section class="stage">
+    <p class="task-name" id="taskName"></p>
+    <p class="prompt" id="promptText"></p>
+
+    <div class="timer-row">
+      <div class="phase" id="phase">Ready</div>
+      <div class="clock" id="clock">0:00</div>
+    </div>
+    <div class="bar" id="bar"><i></i></div>
+
+    <div class="controls">
+      <button id="startBtn">Start task</button>
+      <button id="stopBtn" class="danger" disabled>Stop speaking</button>
+      <button id="evalBtn" class="secondary" disabled>Get score</button>
+      <button id="copyBtn" class="secondary">Copy for Claude</button>
+      <button id="nextBtn" class="secondary">Next task</button>
+      <button id="newPromptBtn" class="secondary">Different prompt</button>
+    </div>
+    <div class="mic-status" id="micStatus" style="display:none"><span class="dot"></span>Listening</div>
+
+    <div id="playback" style="display:none;margin-top:16px">
+      <label>Your recording</label>
+      <audio id="player" controls style="width:100%"></audio>
+    </div>
+    <label for="transcript">Your response (transcript)</label>
+    <textarea id="transcript" placeholder="Your speech appears here as you talk. You can also type or fix words before scoring."></textarea>
+    <p class="hint" id="micHint"></p>
+  </section>
+
+  <section class="result" id="result"></section>
+
+  <div class="history" id="history"></div>
+  <details class="stage" style="margin-top:14px;padding:14px 22px">
+    <summary style="cursor:pointer;font-weight:600;color:var(--navy)">Scoring settings</summary>
+    <label for="apiKey">Anthropic API key (needed when this page is hosted outside Claude)</label>
+    <input id="apiKey" type="password" placeholder="sk-ant-..." style="width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:var(--radius)">
+    <p class="hint">Stored only in this browser. Get a key at console.anthropic.com. Leave empty when using the page inside Claude.</p>
+    <button id="saveKey" class="secondary" style="margin-top:8px">Save key</button> <span id="keyStatus" class="hint"></span>
+  </details>
+  <footer>Timings match the real test: prep, then speaking. Scoring is an estimate on the CLB scale used for CELPIP Speaking.</footer>
+</div>
+
+<script>
+const TASKS = [
+  {n:1, name:"Giving Advice", prep:30, speak:90, prompts:[
+    "Your friend has just moved to Canada and is nervous about making friends. Give them some advice.",
+    "Your cousin wants to buy a used car but knows nothing about cars. Advise them on what to check before buying.",
+    "A coworker is thinking about going back to school while working full time. Give them advice on how to manage both.",
+    "Your younger brother has just started his first job and is finding it hard to manage his time. Give him advice.",
+    "A friend wants to start exercising but always gives up after a week. Give them advice on how to stay motivated.",
+    "Your neighbour is planning to adopt a dog for the first time. Give them advice on what to prepare and consider.",
+    "A coworker is nervous about an upcoming job interview. Give them advice on how to prepare.",
+    "Your friend has been offered a job in another city but is worried about leaving family behind. Give them advice.",
+    "Your sister wants to save money for a trip but spends most of her salary every month. Give her advice.",
+    "A friend is having trouble sleeping because of work stress. Give them advice.",
+    "Your classmate keeps missing deadlines because of procrastination. Advise them on how to change this habit.",
+    "Your uncle wants to start using a smartphone for the first time but feels overwhelmed. Give him advice.",
+    "A friend is planning their first solo trip abroad. Give them advice on staying safe and enjoying the trip.",
+    "Your roommate wants to learn to cook but always orders takeout. Give them advice on how to start.",
+    "A friend feels lonely after moving to a new city for work. Give them advice."]},
+  {n:2, name:"Talking about a Personal Experience", prep:30, speak:60, prompts:[
+    "Talk about a time you had to learn something new quickly. What was it and how did you manage?",
+    "Describe a memorable trip you took. Where did you go and what made it memorable?",
+    "Talk about a time you helped someone who was in a difficult situation.",
+    "Talk about a time you received a gift that meant a lot to you. What was it and why was it special?",
+    "Talk about a time you got lost in an unfamiliar place. What happened and how did you find your way?",
+    "Talk about a time you had to speak in front of a group of people. How did you feel and how did it go?",
+    "Talk about a time you tried a food or dish for the first time. What was it and what did you think of it?",
+    "Talk about a time you worked with a team to finish a project. What was your role and what was the result?",
+    "Talk about a time you made a mistake at work or school. What happened and what did you learn?",
+    "Describe a celebration or festival you attended that you enjoyed. What happened there?",
+    "Talk about a time you had to wait a long time for something. How did you spend the time?",
+    "Describe the first day at a new job or school. How did you feel and what happened?",
+    "Talk about a time you changed your mind about something important. What made you change it?",
+    "Talk about a time when bad weather affected your plans. What did you do instead?",
+    "Describe a time you fixed or repaired something yourself. How did it go?"]},
+  {n:3, name:"Describing a Scene", prep:30, speak:60, prompts:[
+    "Describe a busy public library on a weekend afternoon: the people, what they are doing, and the layout, as if the listener cannot see it.",
+    "Describe a crowded bus stop in the morning during light rain. Include the people, what they are holding, and what is happening around them.",
+    "Describe a family picnic in a park on a sunny day. Cover the people, their activities, and the surroundings.",
+    "A small neighbourhood grocery store on a weekday evening: a cashier scanning items for an elderly woman, a father holding a toddler while reaching for cereal, two teenagers on their phones near the fridge, a worker stacking apples. Describe it.",
+    "A school gym during a basketball game: one player jumping to shoot, a referee running alongside, parents cheering on benches, one filming on a phone, a child eating popcorn, a close score on the board. Describe it.",
+    "A beach on a hot afternoon: a lifeguard on a tall chair, a family building a sandcastle, two men playing volleyball, a woman reading under an umbrella, an ice cream cart, seagulls near a food bag. Describe it.",
+    "A train station platform early morning: a businessman checking his watch with a coffee, a mother with a child and stroller, a student asleep on a bench, a worker sweeping, a train approaching, a sign showing a five-minute delay. Describe it.",
+    "A busy hospital waiting room: a receptionist on the phone, an elderly man holding his arm, a young woman filling in a form, a boy playing with toy cars while his mother checks her watch, a nurse opening a door with a list. Describe it.",
+    "A busy airport departure hall: long check-in lines, a family with too many suitcases, a man running with a boarding pass, a security guard talking to a passenger, a cafe in the corner. Describe it.",
+    "An outdoor farmers' market on Saturday morning: a vendor weighing tomatoes, a woman with a dog sampling cheese, a musician playing guitar, children near a lemonade stand, a rain cloud forming. Describe it.",
+    "A living room on a holiday evening: grandparents on the sofa, a child unwrapping a gift, a dog chewing paper, someone taking a photo, a table full of food in the background. Describe it.",
+    "A construction site next to a busy road: a crane lifting a beam, three workers in helmets looking at a plan, a truck reversing, pedestrians walking past on a narrow path, a police officer directing traffic. Describe it.",
+    "A swimming pool on a summer afternoon: a lifeguard watching, children jumping in, an older man swimming laps, a mother putting sunscreen on a baby, a snack counter with a line. Describe it.",
+    "A classroom during a science lesson: a teacher pointing at a diagram, two students mixing liquids, one student sleeping, another raising a hand, posters on the wall, a fire alarm near the door. Describe it.",
+    "A city street at night: a food truck with a line, a couple sharing an umbrella, a cyclist waiting at a red light, a shop owner pulling down a shutter, a taxi with its light on. Describe it."]},
+  {n:4, name:"Making Predictions", prep:30, speak:60, prompts:[
+    "Using the library scene, predict what will happen in the next ten minutes.",
+    "Using the bus stop scene, predict what will happen once the bus arrives.",
+    "Using the picnic scene, predict what will happen when the weather suddenly changes.",
+    "Using the grocery store scene, say what you think will happen in the next few minutes.",
+    "Using the gym scene, predict what will happen by the end of the game.",
+    "Using the beach scene, predict what will happen in the next ten minutes.",
+    "Using the train station scene, predict what will happen when the train arrives.",
+    "Using the hospital waiting room scene, predict what will happen next.",
+    "Using the airport scene, predict what will happen to the man running with the boarding pass and the family with suitcases.",
+    "Using the farmers' market scene, predict what will happen when the rain starts.",
+    "Using the living room holiday scene, predict what will happen after the gift is opened.",
+    "Using the construction site scene, predict what will happen in the next few minutes.",
+    "Using the swimming pool scene, predict what will happen next.",
+    "Using the classroom scene, predict what will happen when the fire alarm goes off.",
+    "Using the city street at night scene, predict what will happen when the light turns green."]},
+  {n:5, name:"Comparing and Persuading", prep:60, speak:60, prompts:[
+    "Your family is choosing between a small downtown condo close to work and a large suburban house with a long commute. Choose one and persuade your family.",
+    "Your office is choosing a team activity: an escape room or a cooking class. Choose one and persuade your coworkers.",
+    "Your family is deciding between a road trip and a beach resort for vacation. Choose one and persuade them.",
+    "Your parents want to celebrate their anniversary: a dinner at an expensive restaurant or a weekend trip to a nearby town. Choose one and persuade your family.",
+    "Your company is deciding: four long days per week, or five regular days with the option to work from home twice a week. Choose one and persuade your manager.",
+    "Your friend needs a phone: the newest model at full price or last year's model at half price. Choose one and persuade your friend.",
+    "Your family is choosing a pet: a cat or a small dog. Choose one and persuade your family.",
+    "Your community centre can fund one improvement: a new outdoor playground or a small public library room. Choose one and persuade the committee.",
+    "You and your partner are choosing a car: a small electric hatchback or a used SUV. Choose one and persuade your partner.",
+    "Your school is choosing a graduation trip: a national park camping trip or a city tour with museums. Choose one and persuade your classmates.",
+    "Your family can afford one purchase this year: a new kitchen or a family vacation. Choose one and persuade them.",
+    "Your team must choose training: a two-day in-person workshop or a six-week online course. Choose one and persuade your team.",
+    "Your friend is choosing a gym: a cheap basic gym near home or an expensive gym with a pool near work. Choose one and persuade them.",
+    "Your neighbourhood is voting: a new bike lane on the main road or more parking spaces. Choose one and persuade your neighbours.",
+    "Your family is choosing a birthday party for your child: a party at home or a party at an indoor play centre. Choose one and persuade your partner."]},
+  {n:6, name:"Dealing with a Difficult Situation", prep:60, speak:60, prompts:[
+    "You promised to attend your best friend's wedding, but your manager has scheduled you for an important client meeting on the same day. Speak either to your friend explaining you cannot come, or to your manager asking to be excused.",
+    "Your neighbour's dog barks every night and you cannot sleep. Speak either to the neighbour about the problem, or to your landlord asking them to intervene.",
+    "You borrowed your friend's laptop and accidentally damaged it. Speak either to your friend explaining what happened, or to a repair shop asking for a quick fix.",
+    "You ordered a birthday cake for tomorrow's party and the bakery just called to say they cannot make it. Speak either to the bakery manager asking for a solution, or to your friend explaining the problem.",
+    "Your roommate keeps inviting guests late at night. Speak either to your roommate about the problem, or to your landlord asking what you can do.",
+    "A plumber arrived two hours late and left without fixing your tap properly. Speak either to the plumber asking him to return, or to the company's customer service asking for a refund.",
+    "Your manager asked you to work Saturday, but you promised to help your parents move. Speak either to your manager asking to be excused, or to your parents explaining you may be late.",
+    "You damaged a book you borrowed from a colleague. Speak either to your colleague explaining what happened, or to a bookshop asking if they can order a replacement quickly.",
+    "Your flight was cancelled and you will miss a family event. Speak either to the airline agent asking for the next available flight, or to your family explaining the delay.",
+    "A coworker keeps taking credit for your work in meetings. Speak either to the coworker about it, or to your manager explaining the situation.",
+    "You received a restaurant bill with items you did not order. Speak either to the server asking for a correction, or to the manager if the server refuses.",
+    "Your child's school called to say your child was in a fight. Speak either to the teacher asking what happened, or to your child at home.",
+    "Your landlord wants to raise the rent by a large amount. Speak either to your landlord asking for a smaller increase, or to a tenant advisor asking about your rights.",
+    "You lent money to a friend two months ago and they have not paid it back. Speak either to your friend asking for the money, or to a mutual friend asking for advice.",
+    "A package you ordered was delivered to the wrong address. Speak either to the delivery company asking them to fix it, or to the neighbour who received it."]},
+  {n:7, name:"Expressing Opinions", prep:30, speak:90, prompts:[
+    "Some people believe children should be given money for doing household chores. Others believe chores should be unpaid. What is your opinion and why?",
+    "Some people think working from home is better than working in an office. Do you agree or disagree? Explain your reasons.",
+    "Some cities are banning cars from their downtown areas. Do you think this is a good idea? Explain.",
+    "Some people think students should wear uniforms at school. Others believe students should choose their own clothes. What is your opinion and why?",
+    "Some people believe social media does more harm than good for teenagers. Do you agree or disagree? Explain your reasons.",
+    "Some people think governments should provide free public transportation in cities. Others think users should pay. What is your opinion and why?",
+    "Some people believe children should learn to code in elementary school. Others think the time should go to reading and math. What is your opinion and why?",
+    "Some people think it is better to rent a home than to buy one. Do you agree or disagree? Explain your reasons.",
+    "Some people believe that university education should be free for everyone. What is your opinion and why?",
+    "Some people think people should retire at 60. Others believe people should work as long as they want. What is your opinion and why?",
+    "Some people believe zoos are cruel and should be closed. Others think zoos protect animals. What is your opinion and why?",
+    "Some companies monitor employees' computer use during work hours. Do you think this is acceptable? Explain.",
+    "Some people think fast food restaurants should be banned near schools. What is your opinion and why?",
+    "Some people believe learning a second language should be mandatory in school. Do you agree or disagree? Explain.",
+    "Some people think online shopping is better than shopping in stores. What is your opinion and why?"]},
+  {n:8, name:"Describing an Unusual Situation", prep:30, speak:60, prompts:[
+    "You see a bicycle with square wheels parked outside your office. Call a friend and describe it in detail so they can picture it.",
+    "You find a chair in a store that has no legs and floats a few inches above the floor. Describe it to a friend on the phone.",
+    "You receive a package containing a clock that runs backwards and has three hands of different colours. Describe it to a friend.",
+    "You see a vending machine in your office that sells only single socks in bright colours. Call a friend and describe it.",
+    "You find an umbrella at a bus stop that opens upside down and has a small light inside it. Describe it to a friend on the phone.",
+    "You walk into a cafe where all the tables are hanging from the ceiling by ropes and slowly turning. Describe it to a friend.",
+    "You receive a pair of glasses with three lenses and a tiny fan on the side. Describe it to a friend on the phone.",
+    "You see a bicycle with two seats facing opposite directions and a small roof. Describe it to a friend.",
+    "You see a car painted like a zebra with a garden growing on its roof. Describe it to a friend on the phone.",
+    "You find a shoe in a store with a small wheel on the heel and a pocket on the side. Describe it to a friend.",
+    "You receive a mug that changes colour with temperature and has a spoon built into the handle. Describe it to a friend.",
+    "You see a house in your neighbourhood shaped like a giant shoe with windows in the laces. Describe it to a friend on the phone.",
+    "You find a backpack in a shop with a built-in chair that folds out of the bottom. Describe it to a friend.",
+    "You see a dog wearing a raincoat, sunglasses, and four tiny boots, sitting in a stroller. Describe it to a friend on the phone.",
+    "You receive a pen that writes in three colours at once and lights up when you shake it. Describe it to a friend."]}
+];
+
+let ti = 0, pi = 0, timer = null, recog = null, finalText = "", speakingStarted = false;
+let mediaRec = null, chunks = [], audioCtx = null, analyser = null, silenceTimer = null, speakStart = 0;
+let delivery = null, lowConf = [], stream = null;
+const $ = id => document.getElementById(id);
+const clock = $("clock"), bar = $("bar"), barFill = bar.querySelector("i");
+const scores = [];
+
+function loadTask(){
+  const t = TASKS[ti];
+  $("taskNum").textContent = `Task ${t.n} of 8 · Prompt ${pi+1}/${t.prompts.length}`;
+  $("taskName").textContent = `Task ${t.n}: ${t.name}  |  Prep ${t.prep}s  |  Speak ${t.speak}s`;
+  $("promptText").textContent = t.prompts[pi];
+  $("phase").textContent = "Ready"; clock.textContent = fmt(t.prep); clock.className = "clock";
+  bar.className = "bar"; barFill.style.width = "0%";
+  $("transcript").value = ""; finalText = ""; lowConf = []; delivery = null;
+  $("playback").style.display = "none";
+  $("result").style.display = "none";
+  $("startBtn").disabled = false; $("stopBtn").disabled = true; $("evalBtn").disabled = false;
+  speakingStarted = false;
+}
+function fmt(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+function runCountdown(seconds, label, cls, onDone){
+  clearInterval(timer);
+  let left = seconds; const total = seconds;
+  $("phase").textContent = label; clock.className = "clock "+cls; bar.className = "bar "+cls;
+  clock.textContent = fmt(left); barFill.style.width = "0%";
+  timer = setInterval(()=>{
+    left--; clock.textContent = fmt(left);
+    barFill.style.width = ((total-left)/total*100)+"%";
+    if(cls==="" && left<=5) clock.className = "clock warn";
+    if(left<=0){ clearInterval(timer); onDone(); }
+  },1000);
+}
+
+$("startBtn").onclick = ()=>{
+  const t = TASKS[ti];
+  $("startBtn").disabled = true; $("evalBtn").disabled = true;
+  $("transcript").value=""; finalText="";
+  runCountdown(t.prep, "Preparation", "", ()=>{
+    beep(); startSpeaking();
+  });
+};
+
+function startSpeaking(){
+  const t = TASKS[ti];
+  speakingStarted = true;
+  $("stopBtn").disabled = false;
+  startRecording();
+  startMic();
+  runCountdown(t.speak, "Speaking", "rec", ()=>{ beep(); stopSpeaking(); });
+}
+function stopSpeaking(){
+  clearInterval(timer);
+  stopMic();
+  stopRecording();
+  $("phase").textContent = "Finished"; clock.className="clock"; bar.className="bar";
+  $("stopBtn").disabled = true; $("evalBtn").disabled = false; $("startBtn").disabled = false;
+}
+$("stopBtn").onclick = stopSpeaking;
+$("nextBtn").onclick = ()=>{ ti=(ti+1)%TASKS.length; pi=Math.floor(Math.random()*TASKS[ti].prompts.length); stopMic(); clearInterval(timer); loadTask(); };
+$("newPromptBtn").onclick = ()=>{ pi=(pi+1)%TASKS[ti].prompts.length; stopMic(); clearInterval(timer); loadTask(); };
+
+function beep(){
+  try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination); o.frequency.value=880; g.gain.value=.15; o.start(); o.stop(ctx.currentTime+.25);}catch(e){}
+}
+
+/* Speech recognition */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(!SR){ $("micHint").textContent = "Live transcription is not supported in this browser. Use Chrome or Safari, or type your response after speaking."; }
+else { $("micHint").textContent = "Speak out loud. Words are transcribed live; edit any misheard words before scoring."; }
+
+function startMic(){
+  if(!SR) return;
+  try{
+    recog = new SR(); recog.lang="en-CA"; recog.continuous=true; recog.interimResults=true;
+    recog.onresult = e=>{
+      let interim="";
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const r=e.results[i];
+        if(r.isFinal){
+          finalText += r[0].transcript+" ";
+          if(typeof r[0].confidence==="number" && r[0].confidence>0 && r[0].confidence<0.75) lowConf.push(r[0].transcript.trim());
+        } else interim += r[0].transcript;
+      }
+      $("transcript").value = (finalText+interim).trim();
+    };
+    recog.onend = ()=>{ if(speakingStarted && !$("stopBtn").disabled){ try{recog.start();}catch(e){} } };
+    recog.onerror = e=>{ if(e.error==="not-allowed") $("micHint").textContent="Microphone blocked. Allow mic access in the browser, or type your response."; };
+    recog.start();
+    $("micStatus").style.display="inline-flex";
+  }catch(e){}
+}
+function stopMic(){
+  speakingStarted=false;
+  if(recog){ try{recog.onend=null; recog.stop();}catch(e){} recog=null; }
+  $("micStatus").style.display="none";
+}
+
+/* Recording + delivery analysis */
+async function startRecording(){
+  delivery = {pauses:0, pauseTotal:0, longest:0, loudSamples:0, totalSamples:0};
+  speakStart = Date.now();
+  try{
+    if(!stream || !stream.active) stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks = [];
+    mediaRec = new MediaRecorder(stream);
+    mediaRec.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    mediaRec.onstop = ()=>{
+      const blob = new Blob(chunks,{type:mediaRec.mimeType||"audio/webm"});
+      $("player").src = URL.createObjectURL(blob);
+      $("playback").style.display = "block";
+    };
+    mediaRec.start();
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.fftSize);
+    let silentSince = null;
+    silenceTimer = setInterval(()=>{
+      analyser.getByteTimeDomainData(buf);
+      let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
+      const rms = Math.sqrt(sum/buf.length);
+      delivery.totalSamples++;
+      if(rms>0.02){
+        delivery.loudSamples++;
+        if(silentSince){ const gap=(Date.now()-silentSince)/1000;
+          if(gap>=1.2){ delivery.pauses++; delivery.pauseTotal+=gap; delivery.longest=Math.max(delivery.longest,gap); }
+          silentSince=null; }
+      } else if(!silentSince){ silentSince = Date.now(); }
+    },100);
+  }catch(e){ $("micHint").textContent="Recording unavailable: "+e.message+". Transcript scoring still works."; }
+}
+function stopRecording(){
+  clearInterval(silenceTimer);
+  if(delivery){ delivery.seconds = Math.round((Date.now()-speakStart)/1000); }
+  try{ if(mediaRec && mediaRec.state!=="inactive") mediaRec.stop(); }catch(e){}
+  try{ if(audioCtx) audioCtx.close(); }catch(e){}
+  mediaRec=null; audioCtx=null;
+}
+function deliveryReport(text){
+  if(!delivery || !delivery.seconds) return null;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const wpm = Math.round(words/(delivery.seconds/60));
+  const fillers = (text.match(/\b(um+|uh+|er+|hmm+|like|you know|basically|actually)\b/gi)||[]).length;
+  const used = Math.round(delivery.seconds/TASKS[ti].speak*100);
+  return {wpm, words, seconds:delivery.seconds, used, pauses:delivery.pauses, longest:+delivery.longest.toFixed(1),
+          fillers, unclear:[...new Set(lowConf)].slice(0,8)};
+}
+
+/* API key (only meaningful when self-hosted) */
+function getKey(){ try{ return localStorage.getItem("celpip_api_key")||""; }catch(e){ return ""; } }
+try{ $("apiKey").value = getKey(); if(getKey()) $("keyStatus").textContent="Key saved."; }catch(e){}
+$("saveKey").onclick = ()=>{ try{ localStorage.setItem("celpip_api_key",$("apiKey").value.trim()); $("keyStatus").textContent="Key saved."; }catch(e){ $("keyStatus").textContent="Could not save in this browser."; } };
+
+/* Copy fallback */
+$("copyBtn").onclick = async ()=>{
+  const t = TASKS[ti]; const text = $("transcript").value.trim(); const d = deliveryReport(text);
+  let out = `CELPIP Speaking Task ${t.n} (${t.name})\nPrompt: ${t.prompts[pi]}\nTime allowed: ${t.speak}s\n\nTranscript:\n${text}`;
+  if(d) out += `\n\nDelivery: spoke ${d.seconds}s (${d.used}%), ${d.wpm} wpm, ${d.pauses} long pauses (longest ${d.longest}s), ${d.fillers} fillers, unclear words: ${d.unclear.join(", ")||"none"}`;
+  out += "\n\nPlease score this on the CLB scale with wrong → correct → reason corrections.";
+  try{ await navigator.clipboard.writeText(out); $("copyBtn").textContent="Copied"; }
+  catch(e){ $("transcript").value = out; $("copyBtn").textContent="Copied into box"; }
+  setTimeout(()=>$("copyBtn").textContent="Copy for Claude",2000);
+};
+
+/* Scoring */
+$("evalBtn").onclick = async ()=>{
+  const text = $("transcript").value.trim();
+  const t = TASKS[ti];
+  const res = $("result"); res.style.display="block";
+  if(text.split(/\s+/).length < 15){ res.innerHTML='<p class="err">The transcript is too short to score. Speak for the full time, then try again.</p>'; return; }
+  res.innerHTML='<p class="loading">Scoring your response…</p>';
+  $("evalBtn").disabled = true;
+
+  const system = `You are a strict CELPIP Speaking examiner. Score a transcript of a spoken response on the CLB scale (CELPIP Speaking levels 1-12). The candidate targets CLB 10-11. Speech was transcribed automatically, so ignore missing punctuation and minor transcription artifacts; judge grammar, vocabulary range and precision, coherence, task fulfillment, and natural speech (fillers, repetition, sentence variety). Be honest: CLB 10+ requires accurate, varied grammar with rare errors, precise collocations, clear organization, and full task coverage within the time. Respond ONLY with JSON, no markdown fences, in this exact shape:
+{"clb": <integer 1-12>,
+ "verdict": "<one sentence overall judgement>",
+ "criteria": [
+   {"name":"Content & coherence","score":<1-12>,"note":"<one sentence>"},
+   {"name":"Vocabulary","score":<1-12>,"note":"<one sentence>"},
+   {"name":"Listenability (grammar, flow)","score":<1-12>,"note":"<one sentence>"},
+   {"name":"Task fulfillment","score":<1-12>,"note":"<one sentence>"}],
+ "errors": [{"wrong":"<exact phrase from transcript>","right":"<corrected phrase>","why":"<short grammar/word-choice principle>"}],
+ "upgrades": ["<specific change that would lift the score one band>", "..."],
+ "delivery_note": "<one or two sentences on pace, pauses, fillers, and unclear words, based on the delivery data; empty string if no data>",
+ "model": "<a CLB 11 model response, 90-120 words, natural spoken register, for the same prompt>"}
+List at most 4 errors, prioritising articles, collocations, tense, and word choice. At most 3 upgrades. Keep every string short. Total output must stay under 600 words.`;
+
+  const d = deliveryReport(text);
+  let dtext = "";
+  if(d) dtext = `\n\nDelivery data measured from the recording (use this for Listenability):\n- Spoke ${d.seconds}s of ${t.speak}s allowed (${d.used}%)\n- Rate: ${d.wpm} words/min (CELPIP natural range 120-160)\n- Pauses over 1.2s: ${d.pauses}, longest ${d.longest}s\n- Filler words: ${d.fillers}\n- Words the speech recognizer heard unclearly (possible pronunciation issues): ${d.unclear.length?d.unclear.join("; "):"none"}`;
+  const user = `Task ${t.n}: ${t.name}\nPrompt: ${t.prompts[pi]}\nSpeaking time allowed: ${t.speak} seconds\n\nTranscript:\n${text}${dtext}`;
+
+  try{
+    const key = getKey();
+    const headers = {"Content-Type":"application/json"};
+    if(key){ headers["x-api-key"]=key; headers["anthropic-version"]="2023-06-01"; headers["anthropic-dangerous-direct-browser-access"]="true"; }
+    const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers,
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,system,messages:[{role:"user",content:user}]})});
+    const data = await r.json();
+    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+    let j;
+    try{
+      const m = raw.match(/\{[\s\S]*\}/);
+      j = JSON.parse((m?m[0]:raw).replace(/```json|```/g,"").trim());
+    }catch(pe){
+      res.innerHTML='<p class="err">The score came back in an unexpected format. Raw feedback below:</p><div class="model">'+esc(raw)+'</div>';
+      $("evalBtn").disabled=false; return;
+    }
+    render(j, t, d);
+    scores.push({task:t.n, clb:j.clb}); renderHistory();
+  }catch(e){
+    res.innerHTML='<p class="err">Scoring failed: '+esc(e.message)+'</p><p class="hint">If this page is hosted outside Claude, add your Anthropic API key under <b>Scoring settings</b>. Otherwise use <b>Copy for Claude</b> and paste into the chat.</p>';
+  }
+  $("evalBtn").disabled=false;
+};
+
+function esc(s){ return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+function render(j,t,d){
+  const dl = d ? `<h3>Delivery (from recording)</h3>
+    <table>
+      <tr><td>Time used</td><td>${d.seconds}s</td><td>${d.used}% of ${t.speak}s${d.used<80?" — aim to use the full time":""}</td></tr>
+      <tr><td>Pace</td><td>${d.wpm}</td><td>words per minute${d.wpm<110?" — too slow, hesitant":d.wpm>170?" — too fast, risks clarity":" — natural range"}</td></tr>
+      <tr><td>Long pauses</td><td>${d.pauses}</td><td>longest ${d.longest}s${d.pauses>3?" — plan two points in prep so you never stall":""}</td></tr>
+      <tr><td>Fillers</td><td>${d.fillers}</td><td>${d.fillers>4?"replace with a short silent pause":"good"}</td></tr>
+      <tr><td>Unclear words</td><td>${d.unclear.length}</td><td>${d.unclear.length?esc(d.unclear.join(", "))+" — drill these":"none flagged"}</td></tr>
+    </table>
+    <p class="hint">${esc(j.delivery_note||"")}</p>` : "";
+  const crit = (j.criteria||[]).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.score)}</td><td>${esc(c.note)}</td></tr>`).join("");
+  const errs = (j.errors||[]).map(e=>`<li><span class="wrong">${esc(e.wrong)}</span> → <span class="right">${esc(e.right)}</span><span class="why">${esc(e.why)}</span></li>`).join("");
+  const ups = (j.upgrades||[]).map(u=>`<li>${esc(u)}</li>`).join("");
+  $("result").innerHTML = `
+    <div class="score-head">
+      <div class="clb">${esc(j.clb)}<small>CLB level</small></div>
+      <div class="verdict">${esc(j.verdict)}</div>
+    </div>
+    <table>${crit}</table>
+    ${dl}
+    <h3>Corrections</h3>
+    <ul class="errs">${errs || "<li>No significant errors found.</li>"}</ul>
+    <h3>To reach the next band</h3>
+    <ul>${ups}</ul>
+    <h3>CLB 11 model response</h3>
+    <div class="model">${esc(j.model)}</div>`;
+  $("result").scrollIntoView({behavior:"smooth"});
+}
+function renderHistory(){
+  $("history").innerHTML = scores.length ? "This session: " + scores.map(s=>`<span>T${s.task}: CLB ${s.clb}</span>`).join("") : "";
+}
+loadTask();
+</script>
+</body>
+</html>
