@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CELPIP Task 3 &amp; 4 — Picture Practice</title>
+<style>
+  :root{--paper:#fff;--field:#F2F4F7;--ink:#1B2430;--muted:#5B6673;--navy:#1F3B73;--amber:#C77D1A;--red:#B23A3A;--line:#D6DBE2;--r:6px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--field);color:var(--ink);font:16px/1.55 "Segoe UI",Roboto,Arial,sans-serif}
+  .shell{max-width:820px;margin:0 auto;padding:16px}
+  header{background:var(--navy);color:#fff;border-radius:var(--r);padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+  header h1{margin:0;font-size:17px;font-weight:600}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-top:14px}
+  .tests{display:flex;gap:8px;flex-wrap:wrap}
+  .tests button.on{background:var(--navy);color:#fff}
+  button{font:inherit;font-weight:600;padding:10px 16px;border-radius:var(--r);border:1px solid var(--navy);background:#fff;color:var(--navy);cursor:pointer}
+  button.solid{background:var(--navy);color:#fff}
+  button.danger{background:var(--red);border-color:var(--red);color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+  svg.scene{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+  .taskline{font-size:14px;color:var(--muted);margin:0 0 4px}
+  .prompt{font-size:18px;font-weight:500;margin:0 0 14px}
+  .timerrow{display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--line);padding-top:14px}
+  .phase{font-size:14px;color:var(--muted);min-width:110px}
+  .clock{font-size:42px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--navy);line-height:1}
+  .clock.rec{color:var(--red)}
+  .bar{height:6px;background:var(--field);border-radius:3px;margin:10px 0 16px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--navy);transition:width .9s linear}
+  .bar.rec i{background:var(--red)}
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  label{display:block;font-size:14px;color:var(--muted);margin:16px 0 6px}
+  textarea{width:100%;min-height:130px;font:inherit;font-size:15px;padding:12px;border:1px solid var(--line);border-radius:var(--r);resize:vertical}
+  audio{width:100%}
+  .hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+  .live{display:none;align-items:center;gap:8px;font-size:14px;color:var(--red);margin-top:8px}
+  .live .dot{width:10px;height:10px;border-radius:50%;background:var(--red);animation:b 1s infinite}
+  @keyframes b{50%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){.live .dot{animation:none}.bar i{transition:none}}
+  details{margin-top:12px;font-size:15px}
+  summary{cursor:pointer;color:var(--navy);font-weight:600}
+  details ul{margin:8px 0 0 18px;padding:0}
+  .stats{font-size:14px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header><h1>CELPIP Task 3 &amp; 4 — Picture Practice</h1><span id="badge">Test 1</span></header>
+
+  <div class="card">
+    <div class="tests">
+      <button data-t="0" class="on">Test 1 — Park</button>
+      <button data-t="1">Test 2 — Bus stop</button>
+      <button data-t="2">Test 3 — Kitchen</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="pic"></div>
+    <p class="taskline" id="taskline"></p>
+    <p class="prompt" id="prompt"></p>
+    <div class="timerrow"><div class="phase" id="phase">Ready</div><div class="clock" id="clock">0:30</div></div>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="controls">
+      <button id="t3" class="solid">Start Task 3 (describe)</button>
+      <button id="t4">Start Task 4 (predict)</button>
+      <button id="stop" class="danger" disabled>Stop</button>
+      <button id="copy">Copy for Claude</button>
+    </div>
+    <div class="live" id="live"><span class="dot"></span>Listening</div>
+
+    <div id="playwrap" style="display:none"><label>Your recording</label><audio id="player" controls></audio></div>
+    <label for="tr">Transcript (edit any misheard words)</label>
+    <textarea id="tr" placeholder="Your speech appears here while you talk."></textarea>
+    <div class="stats" id="stats"></div>
+    <p class="hint" id="hint"></p>
+
+    <details><summary>Vocabulary for this picture (open after you speak)</summary><div id="vocab"></div></details>
+  </div>
+</div>
+
+<script>
+const SCENES = [
+{ name:"Test 1 — Park on a sunny afternoon",
+  t3:"Describe this picture in detail: the people, what they are doing, and where they are, as if the listener cannot see it.",
+  t4:"The scene is the same. Predict what will happen in the next few minutes.",
+  vocab:["swing set, slide, park bench, stroller, leash, ice cream cart","a mother is pushing her daughter on the swing","a boy is about to slide down / is climbing the ladder","a man is walking his dog on a leash","the sky is clear apart from a few clouds","the vendor is serving a customer at the cart"],
+  svg:`<svg class="scene" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A park on a sunny afternoon with a swing, slide, bench, dog walker and ice cream cart">
+  <rect width="800" height="420" fill="#DCEBF7"/><circle cx="700" cy="60" r="34" fill="#F7D774"/>
+  <ellipse cx="150" cy="70" rx="46" ry="20" fill="#fff"/><ellipse cx="185" cy="62" rx="32" ry="16" fill="#fff"/>
+  <ellipse cx="430" cy="55" rx="38" ry="17" fill="#fff"/>
+  <rect y="270" width="800" height="150" fill="#9BC98A"/><path d="M0 300 Q400 260 800 300 L800 330 Q400 292 0 330Z" fill="#CBB89A"/>
+  <!-- tree -->
+  <rect x="60" y="180" width="16" height="95" fill="#8B6A4A"/><circle cx="68" cy="170" r="52" fill="#5E9B52"/><circle cx="105" cy="190" r="34" fill="#6FAA5F"/>
+  <!-- swing set -->
+  <path d="M300 120 L260 275 M300 120 L340 275 M470 120 L430 275 M470 120 L510 275" stroke="#7A8899" stroke-width="7"/>
+  <line x1="290" y1="120" x2="480" y2="120" stroke="#7A8899" stroke-width="8"/>
+  <line x1="360" y1="124" x2="360" y2="205" stroke="#4A5563" stroke-width="3"/><line x1="392" y1="124" x2="392" y2="205" stroke="#4A5563" stroke-width="3"/>
+  <rect x="352" y="203" width="48" height="9" rx="3" fill="#B2532F"/>
+  <!-- child on swing -->
+  <circle cx="376" cy="176" r="13" fill="#F0C7A0"/><path d="M376 189 l0 18" stroke="#C7413F" stroke-width="13" stroke-linecap="round"/>
+  <path d="M376 205 l-16 12 M376 205 l14 14" stroke="#2E4A7D" stroke-width="6" stroke-linecap="round"/>
+  <path d="M370 192 l-16 8 M382 192 l16 8" stroke="#F0C7A0" stroke-width="6" stroke-linecap="round"/>
+  <!-- mother pushing -->
+  <circle cx="318" cy="184" r="15" fill="#E3B58E"/><path d="M310 172 q10 -12 20 2" stroke="#3A3A46" stroke-width="9" fill="none"/>
+  <path d="M318 199 l-2 44" stroke="#3E7A63" stroke-width="17" stroke-linecap="round"/>
+  <path d="M316 243 l-9 30 M316 243 l11 30" stroke="#39485C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M328 202 l28 -14" stroke="#E3B58E" stroke-width="7" stroke-linecap="round"/>
+  <!-- slide -->
+  <path d="M560 150 L560 270" stroke="#7A8899" stroke-width="7"/><path d="M560 150 L660 265" stroke="#3E86C4" stroke-width="12" stroke-linecap="round"/>
+  <path d="M548 175 h24 M548 200 h24 M548 225 h24 M548 250 h24" stroke="#7A8899" stroke-width="5"/>
+  <circle cx="565" cy="132" r="13" fill="#F0C7A0"/><path d="M565 145 l0 20" stroke="#D8892F" stroke-width="13" stroke-linecap="round"/>
+  <path d="M565 163 l-10 16 M565 163 l12 16" stroke="#2E4A7D" stroke-width="6" stroke-linecap="round"/>
+  <!-- bench with woman and stroller -->
+  <rect x="120" y="245" width="110" height="9" rx="3" fill="#B2532F"/><rect x="128" y="254" width="8" height="26" fill="#8B6A4A"/><rect x="214" y="254" width="8" height="26" fill="#8B6A4A"/>
+  <rect x="120" y="222" width="110" height="8" rx="3" fill="#B2532F"/>
+  <circle cx="160" cy="212" r="14" fill="#E3B58E"/><path d="M152 202 q10 -12 18 3" stroke="#5B3A2A" stroke-width="9" fill="none"/>
+  <path d="M160 226 l0 20" stroke="#8E4C7A" stroke-width="16" stroke-linecap="round"/><path d="M160 246 l24 4" stroke="#39485C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M250 235 q6 -30 34 -30 l0 30 z" fill="#4A5A7A"/><rect x="248" y="234" width="42" height="9" rx="4" fill="#39485C"/>
+  <circle cx="254" cy="252" r="9" fill="#2A2F38"/><circle cx="284" cy="252" r="9" fill="#2A2F38"/>
+  <path d="M288 205 l16 26" stroke="#39485C" stroke-width="5"/>
+  <!-- dog walker -->
+  <circle cx="690" cy="200" r="15" fill="#F0C7A0"/><path d="M690 215 l0 42" stroke="#2E5E86" stroke-width="17" stroke-linecap="round"/>
+  <path d="M690 257 l-10 28 M690 257 l12 28" stroke="#39485C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M680 222 l-30 22" stroke="#F0C7A0" stroke-width="7" stroke-linecap="round"/>
+  <path d="M650 244 q-22 18 -38 26" stroke="#8B6A4A" stroke-width="3" fill="none"/>
+  <ellipse cx="596" cy="286" rx="26" ry="14" fill="#A9713F"/><circle cx="574" cy="274" r="11" fill="#A9713F"/><path d="M566 268 l-6 -10" stroke="#A9713F" stroke-width="5"/>
+  <path d="M584 298 l0 12 M606 298 l0 12 M620 280 l14 -8" stroke="#A9713F" stroke-width="5" stroke-linecap="round"/>
+  <!-- ice cream cart -->
+  <rect x="380" y="290" width="86" height="52" rx="5" fill="#fff" stroke="#39485C" stroke-width="3"/>
+  <path d="M374 290 h98 l-14 -20 h-70 z" fill="#C7413F"/><circle cx="398" cy="348" r="10" fill="#2A2F38"/><circle cx="450" cy="348" r="10" fill="#2A2F38"/>
+  <circle cx="352" cy="300" r="14" fill="#E3B58E"/><path d="M352 314 l0 34" stroke="#4F6B8F" stroke-width="16" stroke-linecap="round"/>
+  <path d="M352 348 l-9 24 M352 348 l10 24" stroke="#39485C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M362 320 l22 -6" stroke="#E3B58E" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="484" cy="302" r="13" fill="#F0C7A0"/><path d="M484 315 l0 30" stroke="#D8892F" stroke-width="14" stroke-linecap="round"/>
+  <path d="M484 345 l-8 22 M484 345 l9 22" stroke="#39485C" stroke-width="7" stroke-linecap="round"/>
+  <path d="M474 320 l-16 -6" stroke="#F0C7A0" stroke-width="6" stroke-linecap="round"/>
+</svg>` },
+
+{ name:"Test 2 — Bus stop in the rain",
+  t3:"Describe this picture in detail: the people, what they are holding, and what is happening around them.",
+  t4:"The scene is the same. Predict what will happen when the bus arrives.",
+  vocab:["bus shelter, umbrella, puddle, timetable, backpack, walking stick","a woman is holding an umbrella over her head","a man is checking the time on his phone","an elderly man is leaning on a walking stick","the bus is pulling up to the curb","water is splashing from the puddle","they are waiting under the shelter to stay dry"],
+  svg:`<svg class="scene" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A rainy bus stop with three people waiting under a shelter and a bus approaching">
+  <rect width="800" height="420" fill="#B9C6D4"/>
+  <g stroke="#8FA3B8" stroke-width="2" opacity=".8">
+    <path d="M40 20 l-14 40 M120 0 l-14 40 M200 30 l-14 40 M280 5 l-14 40 M360 40 l-14 40 M440 10 l-14 40 M520 35 l-14 40 M600 0 l-14 40 M680 25 l-14 40 M760 45 l-14 40 M80 90 l-14 40 M240 110 l-14 40 M400 95 l-14 40 M560 120 l-14 40 M720 100 l-14 40"/>
+  </g>
+  <rect y="300" width="800" height="120" fill="#6E7580"/><rect y="300" width="800" height="10" fill="#8A9199"/>
+  <rect y="288" width="800" height="14" fill="#A8AFB8"/>
+  <ellipse cx="520" cy="355" rx="70" ry="14" fill="#5A626D"/><ellipse cx="200" cy="378" rx="90" ry="16" fill="#5A626D"/>
+  <!-- shelter -->
+  <rect x="60" y="120" width="300" height="14" rx="4" fill="#39485C"/>
+  <rect x="66" y="134" width="10" height="160" fill="#4A5563"/><rect x="344" y="134" width="10" height="160" fill="#4A5563"/>
+  <rect x="76" y="140" width="268" height="120" fill="#D8E4EE" opacity=".55"/>
+  <rect x="240" y="150" width="70" height="46" rx="3" fill="#fff" stroke="#39485C" stroke-width="2"/>
+  <g stroke="#7A8899" stroke-width="3"><path d="M248 162 h50 M248 172 h50 M248 182 h36"/></g>
+  <rect x="90" y="250" width="120" height="9" rx="3" fill="#B2532F"/><rect x="96" y="259" width="8" height="32" fill="#8B6A4A"/><rect x="196" y="259" width="8" height="32" fill="#8B6A4A"/>
+  <!-- elderly man seated with stick -->
+  <circle cx="130" cy="212" r="15" fill="#E8C39C"/><path d="M120 202 q10 -12 20 2" stroke="#C9CDD2" stroke-width="9" fill="none"/>
+  <path d="M130 227 l0 22" stroke="#4A5563" stroke-width="17" stroke-linecap="round"/><path d="M130 249 l26 6" stroke="#39485C" stroke-width="9" stroke-linecap="round"/>
+  <path d="M142 232 l14 20" stroke="#E8C39C" stroke-width="6" stroke-linecap="round"/><path d="M158 250 l6 42" stroke="#8B6A4A" stroke-width="4"/>
+  <!-- man with phone -->
+  <circle cx="250" cy="216" r="15" fill="#F0C7A0"/><path d="M240 206 q10 -13 20 2" stroke="#2A2F38" stroke-width="9" fill="none"/>
+  <path d="M250 231 l0 44" stroke="#2E5E86" stroke-width="18" stroke-linecap="round"/>
+  <path d="M250 275 l-10 20 M250 275 l11 20" stroke="#39485C" stroke-width="9" stroke-linecap="round"/>
+  <path d="M240 240 l-8 -12" stroke="#F0C7A0" stroke-width="6" stroke-linecap="round"/>
+  <rect x="224" y="216" width="14" height="20" rx="3" fill="#2A2F38"/>
+  <path d="M262 236 l16 14" stroke="#F0C7A0" stroke-width="6" stroke-linecap="round"/>
+  <rect x="266" y="234" width="24" height="34" rx="4" fill="#7A5C3E"/>
+  <!-- woman with umbrella outside shelter -->
+  <path d="M400 150 q54 -56 108 0 z" fill="#C7413F"/><path d="M454 150 l0 40" stroke="#39485C" stroke-width="4"/>
+  <circle cx="454" cy="205" r="15" fill="#E3B58E"/><path d="M444 196 q12 -14 22 3" stroke="#5B3A2A" stroke-width="10" fill="none"/>
+  <path d="M454 220 l0 46" stroke="#8E4C7A" stroke-width="18" stroke-linecap="round"/>
+  <path d="M454 266 l-11 26 M454 266 l12 26" stroke="#39485C" stroke-width="9" stroke-linecap="round"/>
+  <path d="M446 228 l-4 -34" stroke="#E3B58E" stroke-width="6" stroke-linecap="round"/>
+  <path d="M466 232 l18 16" stroke="#E3B58E" stroke-width="6" stroke-linecap="round"/>
+  <rect x="480" y="244" width="26" height="20" rx="4" fill="#3E7A63"/>
+  <!-- bus approaching -->
+  <rect x="590" y="150" width="200" height="130" rx="12" fill="#2E5E86"/>
+  <rect x="600" y="164" width="60" height="44" rx="4" fill="#CBDCEA"/><rect x="670" y="164" width="50" height="44" rx="4" fill="#CBDCEA"/><rect x="730" y="164" width="50" height="44" rx="4" fill="#CBDCEA"/>
+  <rect x="600" y="222" width="46" height="58" rx="4" fill="#1F3B73"/>
+  <circle cx="640" cy="292" r="20" fill="#2A2F38"/><circle cx="640" cy="292" r="8" fill="#8A9199"/>
+  <circle cx="756" cy="292" r="20" fill="#2A2F38"/><circle cx="756" cy="292" r="8" fill="#8A9199"/>
+  <circle cx="596" cy="248" r="9" fill="#F7D774"/>
+  <rect x="606" y="140" width="96" height="14" rx="4" fill="#39485C"/>
+</svg>` },
+
+{ name:"Test 3 — Family kitchen before dinner",
+  t3:"Describe this picture in detail: the people, what each person is doing, and the layout of the room.",
+  t4:"The scene is the same. Predict what will happen in the next ten minutes.",
+  vocab:["counter, chopping board, stove, saucepan, oven mitt, cupboard, tablecloth","a woman is chopping vegetables on the counter","a man is stirring something in a pot on the stove","a girl is setting the table / laying out plates","a cat is sitting on the counter next to the sink","steam is rising from the pot","a cake is cooling near the window"],
+  svg:`<svg class="scene" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A family kitchen with a woman chopping vegetables, a man at the stove, a girl setting the table, a cat on the counter and a dog under the table">
+  <rect width="800" height="420" fill="#F3EBDD"/>
+  <rect y="300" width="800" height="120" fill="#C9A87C"/><g stroke="#B08F63" stroke-width="2"><path d="M0 330 h800 M0 366 h800 M100 300 v120 M300 300 v120 M500 300 v120 M700 300 v120"/></g>
+  <!-- window -->
+  <rect x="560" y="40" width="180" height="120" rx="6" fill="#CBE3F2" stroke="#8B6A4A" stroke-width="6"/>
+  <path d="M650 44 v112 M564 100 h172" stroke="#8B6A4A" stroke-width="5"/>
+  <!-- upper cupboards -->
+  <rect x="40" y="40" width="220" height="90" rx="5" fill="#E2CDAE" stroke="#B08F63" stroke-width="4"/><path d="M150 44 v82" stroke="#B08F63" stroke-width="4"/>
+  <circle cx="140" cy="86" r="5" fill="#8B6A4A"/><circle cx="162" cy="86" r="5" fill="#8B6A4A"/>
+  <!-- counter -->
+  <rect x="30" y="212" width="330" height="18" rx="4" fill="#8B6A4A"/><rect x="30" y="230" width="330" height="70" fill="#E2CDAE" stroke="#B08F63" stroke-width="3"/>
+  <rect x="250" y="248" width="90" height="42" rx="4" fill="#CBDCEA" stroke="#7A8899" stroke-width="3"/>
+  <!-- chopping board and veg -->
+  <rect x="70" y="200" width="80" height="12" rx="3" fill="#C79A64"/>
+  <circle cx="86" cy="194" r="7" fill="#C7413F"/><circle cx="104" cy="194" r="7" fill="#3E7A63"/><circle cx="122" cy="194" r="7" fill="#D8892F"/>
+  <!-- woman chopping -->
+  <circle cx="110" cy="150" r="17" fill="#E8C39C"/><path d="M98 140 q13 -16 25 3" stroke="#5B3A2A" stroke-width="11" fill="none"/>
+  <path d="M110 167 l0 46" stroke="#8E4C7A" stroke-width="20" stroke-linecap="round"/>
+  <path d="M120 178 l14 20" stroke="#E8C39C" stroke-width="7" stroke-linecap="round"/><path d="M100 178 l-8 18" stroke="#E8C39C" stroke-width="7" stroke-linecap="round"/>
+  <path d="M132 196 l10 6" stroke="#8A9199" stroke-width="4"/>
+  <!-- stove with man -->
+  <rect x="420" y="230" width="120" height="70" rx="4" fill="#B9BEC6" stroke="#7A8899" stroke-width="3"/>
+  <rect x="420" y="214" width="120" height="16" rx="4" fill="#4A5563"/>
+  <circle cx="450" cy="222" r="7" fill="#39485C"/><circle cx="510" cy="222" r="7" fill="#39485C"/>
+  <rect x="432" y="248" width="96" height="40" rx="4" fill="#39485C"/><rect x="440" y="256" width="80" height="24" rx="3" fill="#C7413F" opacity=".5"/>
+  <ellipse cx="480" cy="212" rx="30" ry="9" fill="#8A9199"/><rect x="450" y="196" width="60" height="18" rx="4" fill="#A8AFB8"/>
+  <path d="M470 190 q6 -16 -4 -26 M490 190 q8 -18 -2 -28" stroke="#D8E4EE" stroke-width="5" fill="none" opacity=".9"/>
+  <circle cx="580" cy="180" r="17" fill="#F0C7A0"/><path d="M568 170 q13 -15 25 2" stroke="#2A2F38" stroke-width="11" fill="none"/>
+  <path d="M580 197 l0 52" stroke="#2E5E86" stroke-width="20" stroke-linecap="round"/>
+  <path d="M580 249 l-12 30 M580 249 l13 30" stroke="#39485C" stroke-width="9" stroke-linecap="round"/>
+  <path d="M568 210 l-52 -4" stroke="#F0C7A0" stroke-width="7" stroke-linecap="round"/>
+  <!-- table with girl -->
+  <rect x="120" y="316" width="240" height="12" rx="4" fill="#8B6A4A"/><rect x="140" y="328" width="10" height="60" fill="#8B6A4A"/><rect x="330" y="328" width="10" height="60" fill="#8B6A4A"/>
+  <rect x="130" y="322" width="220" height="26" rx="4" fill="#D8E4EE" opacity=".7"/>
+  <circle cx="180" cy="314" r="12" fill="#fff" stroke="#7A8899" stroke-width="2"/><circle cx="240" cy="314" r="12" fill="#fff" stroke="#7A8899" stroke-width="2"/>
+  <circle cx="300" cy="314" r="12" fill="#fff" stroke="#7A8899" stroke-width="2"/>
+  <circle cx="330" cy="270" r="15" fill="#E8C39C"/><path d="M318 262 q12 -14 24 2" stroke="#8B6A4A" stroke-width="10" fill="none"/>
+  <path d="M330 285 l0 34" stroke="#3E7A63" stroke-width="17" stroke-linecap="round"/>
+  <path d="M320 296 l-14 12" stroke="#E8C39C" stroke-width="6" stroke-linecap="round"/>
+  <!-- cat on counter -->
+  <ellipse cx="210" cy="200" rx="24" ry="13" fill="#6E7580"/><circle cx="234" cy="188" r="11" fill="#6E7580"/>
+  <path d="M228 180 l-4 -9 M240 180 l6 -8" stroke="#6E7580" stroke-width="4"/><path d="M188 196 q-14 -14 -4 -24" stroke="#6E7580" stroke-width="5" fill="none"/>
+  <!-- dog under table -->
+  <ellipse cx="240" cy="372" rx="28" ry="14" fill="#A9713F"/><circle cx="266" cy="360" r="12" fill="#A9713F"/>
+  <path d="M258 352 l-6 -10" stroke="#A9713F" stroke-width="5"/><path d="M228 384 l0 10 M252 384 l0 10" stroke="#A9713F" stroke-width="5" stroke-linecap="round"/>
+  <!-- cake near window -->
+  <rect x="600" y="196" width="70" height="18" rx="3" fill="#8B6A4A"/>
+  <path d="M606 196 h58 l-6 -22 h-46 z" fill="#F0C7A0"/><path d="M610 178 h50" stroke="#C7413F" stroke-width="6"/>
+</svg>` }
+];
+
+const $ = id=>document.getElementById(id);
+let si = 0, task = 3, timer=null, recog=null, finalText="", live=false;
+let stream=null, mediaRec=null, chunks=[], audioCtx=null, analyser=null, silTimer=null, speakStart=0, delivery=null, lowConf=[];
+
+function load(){
+  const s = SCENES[si];
+  $("badge").textContent = `Test ${si+1}`;
+  $("pic").innerHTML = s.svg;
+  $("vocab").innerHTML = "<ul>"+s.vocab.map(v=>`<li>${v}</li>`).join("")+"</ul>";
+  setTask(3);
+  document.querySelectorAll(".tests button").forEach(b=>b.classList.toggle("on", +b.dataset.t===si));
+}
+function setTask(n){
+  task = n; const s = SCENES[si];
+  $("taskline").textContent = `Task ${n} — ${n===3?"Describing a Scene":"Making Predictions"}  |  Prep 30s  |  Speak 60s`;
+  $("prompt").textContent = n===3 ? s.t3 : s.t4;
+  $("phase").textContent="Ready"; $("clock").textContent="0:30"; $("clock").className="clock";
+  $("bar").className="bar"; $("bar").querySelector("i").style.width="0%";
+  $("tr").value=""; finalText=""; lowConf=[]; delivery=null; $("stats").textContent="";
+  $("playwrap").style.display="none";
+  $("stop").disabled=true;
+}
+document.querySelectorAll(".tests button").forEach(b=>b.onclick=()=>{ si=+b.dataset.t; stopAll(); load(); });
+$("t3").onclick = ()=>{ stopAll(); setTask(3); begin(); };
+$("t4").onclick = ()=>{ stopAll(); setTask(4); begin(); };
+$("stop").onclick = ()=> finish();
+
+function fmt(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function count(sec,label,cls,done){
+  clearInterval(timer); let left=sec; const tot=sec;
+  $("phase").textContent=label; $("clock").className="clock "+cls; $("bar").className="bar "+cls;
+  $("clock").textContent=fmt(left);
+  timer=setInterval(()=>{ left--; $("clock").textContent=fmt(left);
+    $("bar").querySelector("i").style.width=((tot-left)/tot*100)+"%";
+    if(left<=0){ clearInterval(timer); done(); } },1000);
+}
+function begin(){
+  count(30,"Preparation — study the picture","",()=>{ beep(); speak(); });
+}
+function speak(){
+  live=true; $("stop").disabled=false; record();
+  mic();
+  count(60,"Speaking","rec",()=>{ beep(); finish(); });
+}
+function finish(){
+  clearInterval(timer); stopMic(); stopRecord();
+  $("phase").textContent = task===3 ? "Finished — now try Task 4" : "Finished";
+  $("clock").className="clock"; $("bar").className="bar"; $("stop").disabled=true;
+  showStats();
+}
+function stopAll(){ clearInterval(timer); stopMic(); stopRecord(); }
+function beep(){ try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.25);}catch(e){} }
+
+/* transcript */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+$("hint").textContent = SR ? "Speak out loud; words appear live. Allow the microphone once." : "Live transcript needs Chrome or Safari. You can still record and type your answer.";
+function mic(){
+  if(!SR) return;
+  try{
+    recog = new SR(); recog.lang="en-CA"; recog.continuous=true; recog.interimResults=true;
+    recog.onresult = e=>{ let it="";
+      for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i];
+        if(r.isFinal){ finalText+=r[0].transcript+" "; if(typeof r[0].confidence==="number"&&r[0].confidence>0&&r[0].confidence<.75) lowConf.push(r[0].transcript.trim()); }
+        else it+=r[0].transcript; }
+      $("tr").value=(finalText+it).trim(); };
+    recog.onend = ()=>{ if(live){ try{recog.start();}catch(e){} } };
+    recog.start(); $("live").style.display="inline-flex";
+  }catch(e){}
+}
+function stopMic(){ live=false; if(recog){ try{recog.onend=null;recog.stop();}catch(e){} recog=null; } $("live").style.display="none"; }
+
+/* recording + delivery */
+async function record(){
+  delivery={pauses:0,longest:0}; speakStart=Date.now();
+  try{
+    if(!stream||!stream.active) stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[]; mediaRec=new MediaRecorder(stream);
+    mediaRec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+    mediaRec.onstop=()=>{ const b=new Blob(chunks,{type:mediaRec.mimeType||"audio/webm"});
+      $("player").src=URL.createObjectURL(b); $("playwrap").style.display="block"; };
+    mediaRec.start();
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=1024;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    const buf=new Uint8Array(analyser.fftSize); let sil=null;
+    silTimer=setInterval(()=>{ analyser.getByteTimeDomainData(buf);
+      let s=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; s+=v*v; }
+      const rms=Math.sqrt(s/buf.length);
+      if(rms>0.02){ if(sil){ const g=(Date.now()-sil)/1000; if(g>=1.2){ delivery.pauses++; delivery.longest=Math.max(delivery.longest,g); } sil=null; } }
+      else if(!sil) sil=Date.now(); },100);
+  }catch(e){ $("hint").textContent="Recording unavailable: "+e.message; }
+}
+function stopRecord(){
+  clearInterval(silTimer);
+  if(delivery&&speakStart) delivery.seconds=Math.round((Date.now()-speakStart)/1000);
+  try{ if(mediaRec&&mediaRec.state!=="inactive") mediaRec.stop(); }catch(e){}
+  try{ if(audioCtx) audioCtx.close(); }catch(e){}
+  mediaRec=null; audioCtx=null;
+}
+function showStats(){
+  const text=$("tr").value.trim(); if(!delivery||!delivery.seconds||!text) return;
+  const w=text.split(/\s+/).filter(Boolean).length;
+  const wpm=Math.round(w/(delivery.seconds/60));
+  const fillers=(text.match(/\b(um+|uh+|er+|like|you know|basically|actually)\b/gi)||[]).length;
+  const unclear=[...new Set(lowConf)].slice(0,6);
+  $("stats").textContent = `${w} words in ${delivery.seconds}s · ${wpm} wpm (natural 120-160) · long pauses: ${delivery.pauses}${delivery.longest?` (longest ${delivery.longest.toFixed(1)}s)`:""} · fillers: ${fillers}${unclear.length?` · unclear: ${unclear.join(", ")}`:""}`;
+}
+$("copy").onclick = async ()=>{
+  const s=SCENES[si]; const text=$("tr").value.trim();
+  let out=`CELPIP Speaking Task ${task} (${task===3?"Describing a Scene":"Making Predictions"})\nPicture: ${s.name}\nPrompt: ${task===3?s.t3:s.t4}\n\nTranscript:\n${text}`;
+  if($("stats").textContent) out+=`\n\nDelivery: ${$("stats").textContent}`;
+  out+="\n\nPlease score this on the CLB scale with wrong -> correct -> reason corrections.";
+  try{ await navigator.clipboard.writeText(out); $("copy").textContent="Copied"; }
+  catch(e){ $("tr").value=out; $("copy").textContent="Copied into box"; }
+  setTimeout(()=>$("copy").textContent="Copy for Claude",2000);
+};
+load();
+</script>
+</body>
+</html>
